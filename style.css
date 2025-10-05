@@ -1,0 +1,103 @@
+body {
+
+    --font-color: rgb(255, 250, 243);
+
+    font-family: Arial, sans-serif; padding: 20px;
+    background-color: rgb(52, 64, 77);
+    color: var(--font-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+label {
+    display: block; margin: 10px 0 5px;
+}
+
+input[type="number"] { 
+    width: 80px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    padding: 5px;
+}
+
+.result { 
+    margin-top: 20px; 
+    padding: 10px; 
+    border: 1px solid #ccc; 
+    border-radius: 5px;
+}
+
+button {
+    background-color: #4CAF50; 
+    color: white; 
+    padding: 10px 20px; 
+    border: none; 
+    border-radius: 5px; 
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.result {
+  margin-top: 20px;
+}
+
+.card {
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 1.2em;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 10px rgba(250, 235, 215, 0.1), 0 8px 20px rgba(250, 235, 215, 0.1);
+}
+
+.order-card {
+  background: #0f5299;       /* yellow highlight */
+  border: 2px solid var(--font-color);
+  color: var(--font-color);
+  font-size: 1.6em;
+  font-weight: bold;
+}
+
+.small-info {
+  background-color: rgb(24, 31, 37);
+  border: 1px solid #ddd;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.95em;
+}
+
+@media only screen and (max-width: 1000px) { 
+
+    body * {
+        font-size: 3rem;
+    }
+
+    h1 {
+        font-size: 6rem;
+    }
+
+    .order-card {
+        font-size: 4rem;
+    }
+
+    .small-info {
+        font-size: 2rem;
+    }
+
+    .skipToday {
+        display: flex;
+        height: initial;
+    }
+
+    input {
+        width: 200px;
+    }
+
+    input[type="number"] { 
+        width: 250px;
+        text-align: end;
+    }
+}
