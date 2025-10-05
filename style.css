@@ -17,7 +17,6 @@ label {
 
 input[type="number"] { 
     width: 80px;
-    border-radius: 5px;
     border: 1px solid #ccc;
     padding: 5px;
     text-align: end;
@@ -69,4 +68,49 @@ button {
   padding: 10px;
   border-radius: 8px;
   font-size: 0.95em;
+}
+
+
+@media only screen and (max-width: 1000px) { 
+
+
+    body {
+        gap: 5rem;
+    }
+
+    body * {
+        font-size: 3rem;
+    }
+
+    h1 {
+        font-size: 6rem;
+    }
+
+    .order-card {
+        font-size: 4rem;
+    }
+
+    .small-info {
+        font-size: 2rem;
+    }
+
+    .skipToday {
+        display: flex;
+        height: initial;
+    }
+
+    button {
+    padding: 1.5rem 3rem; 
+    border-radius: 1rem; 
+}
+
+    input {
+        width: 200px;
+        border-radius: 1rem; 
+    }
+
+    input[type="number"] { 
+        width: 250px;
+        text-align: end;
+    }
 }

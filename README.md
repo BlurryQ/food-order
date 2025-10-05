@@ -59,6 +59,12 @@ The app makes sure you always know when to place an order so food can defrost an
 
 ---
 
+## 📱 Mobile Support
+
+* On smaller screens, the font sizes scale up.
+* The order date card becomes extra large for easy visibility.
+
+---
 
 ## 🌍 Region Support
 
