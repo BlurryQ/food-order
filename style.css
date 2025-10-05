@@ -20,6 +20,7 @@ input[type="number"] {
     border-radius: 5px;
     border: 1px solid #ccc;
     padding: 5px;
+    text-align: end;
 }
 
 .result { 
@@ -32,7 +33,8 @@ input[type="number"] {
 button {
     background-color: #4CAF50; 
     color: white; 
-    padding: 10px 20px; 
+    padding: 0.9rem 1.8rem; 
+    font-size: 1rem;
     border: none; 
     border-radius: 5px; 
     cursor: pointer;
@@ -53,7 +55,7 @@ button {
 }
 
 .order-card {
-  background: #0f5299;       /* yellow highlight */
+  background: #0f5299;   
   border: 2px solid var(--font-color);
   color: var(--font-color);
   font-size: 1.6em;
@@ -68,36 +70,3 @@ button {
   border-radius: 8px;
   font-size: 0.95em;
 }
-
-/* @media only screen and (max-width: 1000px) { 
-
-    body * {
-        font-size: 3rem;
-    }
-
-    h1 {
-        font-size: 6rem;
-    }
-
-    .order-card {
-        font-size: 4rem;
-    }
-
-    .small-info {
-        font-size: 2rem;
-    }
-
-    .skipToday {
-        display: flex;
-        height: initial;
-    }
-
-    input {
-        width: 200px;
-    }
-
-    input[type="number"] { 
-        width: 250px;
-        text-align: end;
-    }
-} */
