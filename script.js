@@ -117,7 +117,11 @@ function init(type) {
     return;
   }
 
-  const crossed = countMealBoundariesCrossed(state.lastUpdated, now, MEAL_TIMES[type]);
+  const crossed = countMealBoundariesCrossed(
+    state.lastUpdated,
+    now,
+    MEAL_TIMES[type],
+  );
   if (crossed > 0) {
     const updated = Math.max(0, state.mealsRemaining - crossed);
     saveState(type, updated);
@@ -181,23 +185,41 @@ function removeMeals(type) {
 function render(type, meals) {
   const today = todayDateOnly();
 
+  // The stored `meals` count may still include today's not-yet-eaten meal
+  // (if the current time is before that meal's feed hour). The displayed
+  // count should show that honestly, but the run-out projection needs to
+  // treat today's still-pending meal as day 1 of the countdown rather than
+  // an extra day tacked on top.
+  const mealHour = MEAL_TIMES[type];
+  const todaysBoundary = new Date(today);
+  todaysBoundary.setHours(mealHour, 0, 0, 0);
+  const todaysMealAlreadyHappened = new Date() >= todaysBoundary;
+  const effectiveMeals = todaysMealAlreadyHappened
+    ? meals
+    : Math.max(0, meals - 1);
+
   const runOutDate = new Date(today);
-  runOutDate.setDate(runOutDate.getDate() + meals);
+  runOutDate.setDate(runOutDate.getDate() + effectiveMeals);
 
   const orderDate = new Date(runOutDate);
   orderDate.setDate(orderDate.getDate() - 2);
   adjustForNonWorkingDay(orderDate);
 
   document.getElementById(`orderdate-${type}`).textContent =
-    orderDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    orderDate.toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
 
   document.getElementById(`bowl-${type}`).innerHTML = bowlSVG(meals, type);
 
   document.getElementById(`tally-${type}`).innerHTML =
     tallyHTML(meals) +
-    `<span class="tally-count">${meals} left &middot; runs out ${
-      runOutDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    }</span>`;
+    `<span class="tally-count">${meals} left &middot; runs out ${runOutDate.toLocaleDateString(
+      'en-GB',
+      { day: 'numeric', month: 'short' },
+    )}</span>`;
 
   scheduleNotifications(type, orderDate);
 }
