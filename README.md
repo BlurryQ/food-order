@@ -12,7 +12,7 @@ Tracks lunch and dinner as two independent counts, each with its own order-by da
 
 - **Separate lunch and dinner tracking** — different batch sizes, different schedules, tracked independently
 - **Add / Remove, not overwrite** — log a new batch ("just made 15 lunches") without losing the running count, and remove meals lost to spoilage or waste without disturbing the rest
-- **Auto-decrement** — the count quietly ticks down once per calendar day on its own, so it stays accurate even if the app isn't opened every day
+- **Auto-decrement** — each count quietly ticks down right at that meal's set time (not midnight), so it stays accurate even if the app isn't opened every day, and stays honest about whether today's meal has actually happened yet
 - **Bowl-fill visual** — each meal type shows as a bowl that fills up relative to a full batch, for an at-a-glance read on stock level
 - **Chalk tally counter** — the exact count, grouped in fives like a tally on a kitchen board
 - **UK holiday and weekend aware** — order-by dates roll back automatically to the nearest working day, using live data from [gov.uk](https://www.gov.uk/bank-holidays.json)
@@ -86,7 +86,7 @@ The remaining count only decrements once that hour passes each day, rather than 
 
 ## 🔔 Notifications
 
-Two reminders are scheduled per meal type: one **7 days** before the order-by date, and one **5 days** before.
+Two reminders are scheduled per meal type: one **7 days** before the order-by date, and one **5 days** before. Notification permission is requested automatically on startup when running as a native app.
 
 Right now, in a plain browser, this is wired up but inactive — browsers can't reliably wake themselves up on a future date once closed or the phone's asleep. Notifications only start actually firing once the app is wrapped with [Capacitor](https://capacitorjs.com/) and its `LocalNotifications` plugin, which schedules through the OS itself rather than the browser. That wrap is the natural next step for this project — see Roadmap below.
 
@@ -106,20 +106,22 @@ Replace `'england-and-wales'` with `'scotland'` or `'northern-ireland'`.
 
 ## 🗺️ Roadmap
 
+- [x] Wire up `LocalNotifications` scheduling and permission request (active once wrapped with Capacitor)
+- [x] Handle Android Doze mode via `allowWhileIdle` on scheduled notifications
 - [ ] Wrap the app with Capacitor for a real installable Android app
-- [ ] Wire up `LocalNotifications` so the 7-day / 5-day reminders actually fire
-- [ ] Handle Android Doze mode with exact alarm scheduling so reminders aren't delayed
 - [ ] Reschedule notifications on device reboot (native boot-completed receiver)
 
 ---
 
 ## ✅ Example
 
-If lunch has **6 meals left** today:
+If lunch (fed at 1pm) has **6 meals left** and it's currently 10am, today's lunch hasn't happened yet:
 
-- Runs out on: **today + 6 days**
+- Runs out on: **today + 5 days** (today's still-pending meal counts as day one of the countdown)
 - Latest order date: **2 days before that**, rolled back if it lands on a weekend or bank holiday
 - Reminders fire 7 and 5 days ahead of that order date (once notifications are live)
+
+Once 1pm passes and the count auto-drops to 5, the same run-out date still holds — checking before or after the meal always gives a consistent answer.
 
 ---
 

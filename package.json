@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^7.6.8",
+    "@capacitor/core": "^8.5.0"
+  },
+  "name": "food-order",
+  "version": "1.0.0",
+  "description": "A little kitchen-board-styled web app for tracking a dog's meals and working out the **latest date to order or prep more food**, so a defrost never gets missed.",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlurryQ/food-order.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/BlurryQ/food-order/issues"
+  },
+  "homepage": "https://github.com/BlurryQ/food-order#readme"
+}

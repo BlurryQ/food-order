@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dog Meal / Order Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="script.js" defer></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page">
+    <p class="eyebrow">Kitchen board</p>
+    <h1>Meal planner</h1>
+
+    <section class="card lunch">
+      <div class="card-head"><span class="meal-label"><span class="dot"></span>Lunch</span></div>
+      <div class="row">
+        <div class="bowl-wrap" id="bowl-lunch"></div>
+        <div style="flex:1">
+          <p class="order-by">Order by</p>
+          <p class="order-date" id="orderdate-lunch">Loading…</p>
+          <div class="tally-row" id="tally-lunch"></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <p class="error" id="error-lunch"></p>
+      <div class="controls">
+        <input type="number" id="meals-lunch" min="0" placeholder="Meals made">
+        <button class="btn btn-add" onclick="calculate('lunch')">+ Add</button>
+      </div>
+      <div class="controls controls-secondary">
+        <input type="number" id="remove-lunch" min="0" placeholder="Remove qty">
+        <button class="btn btn-remove" onclick="removeMeals('lunch')">Remove</button>
+      </div>
+    </section>
+
+    <section class="card dinner">
+      <div class="card-head"><span class="meal-label"><span class="dot"></span>Dinner</span></div>
+      <div class="row">
+        <div class="bowl-wrap" id="bowl-dinner"></div>
+        <div style="flex:1">
+          <p class="order-by">Order by</p>
+          <p class="order-date" id="orderdate-dinner">Loading…</p>
+          <div class="tally-row" id="tally-dinner"></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <p class="error" id="error-dinner"></p>
+      <div class="controls">
+        <input type="number" id="meals-dinner" min="0" placeholder="Meals received">
+        <button class="btn btn-add" onclick="calculate('dinner')">+ Add</button>
+      </div>
+      <div class="controls controls-secondary">
+        <input type="number" id="remove-dinner" min="0" placeholder="Remove qty">
+        <button class="btn btn-remove" onclick="removeMeals('dinner')">Remove</button>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

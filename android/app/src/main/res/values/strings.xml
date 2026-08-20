@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">food-order</string>
+    <string name="title_activity_main">food-order</string>
+    <string name="package_name">com.soma.foodorder</string>
+    <string name="custom_url_scheme">com.soma.foodorder</string>
+</resources>
