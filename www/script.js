@@ -11,8 +11,20 @@ const MEAL_TIMES = {
   dinner: 18,
 };
 
-// Will hold the set of holiday dates (strings "YYYY-MM-DD")
+// Will hold the set of holiday dates (strings "YYYY-MM-DD"). Seeded
+// synchronously from the last successful fetch (cached in localStorage) so
+// weekend/holiday roll-back still works on a cold, offline start.
 let holidaySet = new Set();
+const HOLIDAY_CACHE_KEY = 'dogMealTracker:holidays';
+
+function loadCachedHolidays() {
+  try {
+    const raw = localStorage.getItem(HOLIDAY_CACHE_KEY);
+    if (raw) JSON.parse(raw).forEach((d) => holidaySet.add(d));
+  } catch {
+    // Ignore a corrupt cache -- the background fetch will refill it.
+  }
+}
 
 // Each meal type tracks its own count, dates, and notifications
 const MEAL_TYPES = ['lunch', 'dinner'];
@@ -26,12 +38,24 @@ const NOTIF_IDS = {
 
 // --- Holidays ---
 
+// Refreshes the holiday list from gov.uk in the background. The UI has
+// already rendered from cache by the time this runs, so a successful fetch
+// only refines the order-by dates and updates the cache for next time.
+// Bounded by a timeout so a flaky mobile connection fails fast instead of
+// leaving the fetch (and the first render) hanging indefinitely.
 async function loadHolidays() {
   try {
-    const resp = await fetch('https://www.gov.uk/bank-holidays.json');
+    const resp = await fetch('https://www.gov.uk/bank-holidays.json', {
+      signal: AbortSignal.timeout(5000),
+    });
     const data = await resp.json();
-    const events = data['england-and-wales'].events;
-    events.forEach((ev) => holidaySet.add(ev.date));
+    const dates = data['england-and-wales'].events.map((ev) => ev.date);
+    dates.forEach((d) => holidaySet.add(d));
+    try {
+      localStorage.setItem(HOLIDAY_CACHE_KEY, JSON.stringify(dates));
+    } catch {
+      // Cache write is best-effort; skip on quota/availability errors.
+    }
   } catch (err) {
     console.error('Failed to load holidays:', err);
   }
@@ -288,12 +312,23 @@ async function requestNotificationPermission() {
   }
 }
 
+// Remembers the order date each meal type was last scheduled against, so
+// the repeated renders (every add/remove, plus the 5-minute interval)
+// don't cancel-and-reschedule an unchanged alarm each time -- which, right
+// at the 09:00 fire moment, could otherwise cancel it microseconds before
+// it delivers.
+const lastScheduledFor = {};
+
 async function scheduleNotifications(type, orderDate) {
   if (!window.Capacitor?.Plugins?.LocalNotifications) return;
   const { LocalNotifications } = window.Capacitor.Plugins;
 
   const { display } = await LocalNotifications.checkPermissions();
   if (display !== 'granted') return;
+
+  const orderKey = orderDate.toDateString();
+  if (lastScheduledFor[type] === orderKey) return;
+  lastScheduledFor[type] = orderKey;
 
   const ids = NOTIF_IDS[type];
   const now = new Date();
@@ -335,7 +370,11 @@ async function scheduleNotifications(type, orderDate) {
   }
 }
 
-// Kick everything off
+// Kick everything off. Render immediately from localStorage (plus any
+// cached holidays) so the counts and dates show even with no connection;
+// the holiday fetch then refreshes the order-by dates whenever it can.
+loadCachedHolidays();
+MEAL_TYPES.forEach(init);
 requestNotificationPermission();
 loadHolidays();
 
