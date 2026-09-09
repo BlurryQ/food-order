@@ -72,7 +72,12 @@
       </div>
     </section>
 
-    <button type="button" class="signout" id="signout-btn" hidden>Sign out</button>
+    <div class="sync-bar" id="sync-bar" hidden>
+      <button type="button" class="sync-status" id="sync-status" data-state="idle" title="">
+        <span class="sync-dot"></span><span id="sync-text">Not synced</span>
+      </button>
+      <button type="button" class="signout" id="signout-btn">Sign out</button>
+    </div>
   </div>
 </body>
 </html>

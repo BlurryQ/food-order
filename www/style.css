@@ -158,9 +158,44 @@ input[type="password"]::placeholder { color: var(--chalk-dim); }
   margin: 0;
 }
 
+.sync-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 2px 0;
+}
+
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  background: none;
+  border: none;
+  color: var(--chalk-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  cursor: default;
+}
+
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chalk-dim);
+  flex-shrink: 0;
+}
+.sync-status[data-state="syncing"] .sync-dot { background: var(--dinner); animation: sync-pulse 1s ease-in-out infinite; }
+.sync-status[data-state="synced"]  .sync-dot { background: #7FB77E; }
+.sync-status[data-state="offline"] .sync-dot { background: var(--lunch); }
+.sync-status[data-state="error"]   .sync-dot { background: var(--danger); }
+.sync-status[data-state="error"] { cursor: help; }
+
+@keyframes sync-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
 .signout {
-  display: block;
-  margin: 4px auto 0;
   padding: 4px 8px;
   background: none;
   border: none;

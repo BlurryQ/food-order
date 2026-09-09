@@ -9,21 +9,25 @@
 // confirmed against appwrite@18.2.0:
 //   - Account.createEmailPasswordSession(email, password)   (v14+ name)
 //   - Account.get()  / Account.deleteSession('current')
-//   - Databases.getDocument / updateDocument(dbId, colId, docId, data)
+//   - Databases.listDocuments / updateDocument(dbId, colId, ...)
 //   - Client.subscribe(channel, cb)  -> cb receives { events, channels, payload }
 //
-// Documents use custom IDs 'lunch' and 'dinner' (see README console steps), so
-// a document id IS the meal type.
+// Rows are matched on the `type` attribute ('lunch' / 'dinner'), NOT on the
+// document id -- the two rows can have any ids (auto-generated is fine). The
+// collection only ever holds these two rows, so pullState lists them all (no
+// Query, so no index needed) and pushAction updates the row whose `type`
+// matches. The type -> $id map is cached from the first list / realtime event.
 
 (function () {
   'use strict';
 
   var AUTH_CACHE_KEY = 'dogMealTracker:syncAuthed';
-  var MEAL_DOC_IDS = ['lunch', 'dinner'];
+  var MEAL_TYPES = ['lunch', 'dinner'];
 
   var client = null;
   var account = null;
   var databases = null;
+  var docIdByType = {}; // 'lunch' -> '<$id>', filled lazily
 
   // Lazily builds the SDK client. Throws if the CDN <script> failed to load
   // (e.g. cold offline start) -- callers treat that as "sync unavailable".
@@ -93,7 +97,17 @@
     // Throws on bad credentials / unreachable server.
     login: async function (email, password) {
       ensureClient();
-      await account.createEmailPasswordSession(email, password);
+      try {
+        await account.createEmailPasswordSession(email, password);
+      } catch (err) {
+        // Already signed in on this client (e.g. a previous attempt that
+        // created the session but didn't return cleanly). Treat as success
+        // only if the session is actually usable.
+        const alreadyActive =
+          err && (err.type === 'user_session_already_exists' || err.code === 409);
+        if (!alreadyActive) throw err;
+        await account.get();
+      }
       try {
         localStorage.setItem(AUTH_CACHE_KEY, '1');
       } catch (e) {
@@ -111,22 +125,28 @@
       await account.deleteSession('current');
     },
 
-    // -> [{ type, meals_remaining, last_action_at }, ...]
+    // -> [{ type, meals_remaining, last_action_at }, ...] for whichever of the
+    // two rows exist. Also (re)builds the type -> $id cache.
     pullState: async function () {
       ensureClient();
       var cfg = window.MEAL_SYNC_CONFIG;
+      var res = await databases.listDocuments(cfg.databaseId, cfg.collectionId);
+      var rows = (res && res.documents) || [];
       var out = [];
-      for (var i = 0; i < MEAL_DOC_IDS.length; i++) {
-        var type = MEAL_DOC_IDS[i];
-        var doc = await databases.getDocument(
-          cfg.databaseId,
-          cfg.collectionId,
-          type,
-        );
+      for (var t = 0; t < MEAL_TYPES.length; t++) {
+        var type = MEAL_TYPES[t];
+        // Newest row wins if setup left duplicates lying around.
+        var match = null;
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].type !== type) continue;
+          if (!match || rows[i].$updatedAt > match.$updatedAt) match = rows[i];
+        }
+        if (!match) continue;
+        docIdByType[type] = match.$id;
         out.push({
           type: type,
-          meals_remaining: doc.meals_remaining,
-          last_action_at: doc.last_action_at,
+          meals_remaining: match.meals_remaining,
+          last_action_at: match.last_action_at,
         });
       }
       return out;
@@ -137,7 +157,22 @@
     pushAction: async function (type, mealsRemaining, lastActionAtISO) {
       ensureClient();
       var cfg = window.MEAL_SYNC_CONFIG;
-      await databases.updateDocument(cfg.databaseId, cfg.collectionId, type, {
+      var id = docIdByType[type];
+      if (!id) {
+        // Not seen yet (push before the first pull) -- look it up now.
+        await this.pullState();
+        id = docIdByType[type];
+      }
+      if (!id) {
+        throw new Error(
+          "No '" +
+            type +
+            "' row in the meal_state collection. Add a row with type=\"" +
+            type +
+            '" in the Appwrite console.',
+        );
+      }
+      await databases.updateDocument(cfg.databaseId, cfg.collectionId, id, {
         type: type,
         meals_remaining: mealsRemaining,
         last_action_at: lastActionAtISO,
@@ -159,7 +194,8 @@
       client.subscribe(channel, function (message) {
         try {
           var doc = message && message.payload;
-          if (!doc || MEAL_DOC_IDS.indexOf(doc.type) === -1) return;
+          if (!doc || MEAL_TYPES.indexOf(doc.type) === -1) return;
+          if (doc.$id) docIdByType[doc.type] = doc.$id;
           cb(doc.type, doc.meals_remaining, doc.last_action_at);
         } catch (err) {
           console.error('MealSync realtime handler failed:', err);

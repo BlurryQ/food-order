@@ -125,9 +125,10 @@ gate, exactly as before.
   pushes — so a long-offline device can't clobber a good server value with a
   stale decremented one.
 - **Last-write-wins.** On bootstrap (after first paint) and on reconnect the app
-  pulls both documents and compares `last_action_at` against the local
-  `lastUpdated`: remote newer → local is overwritten and re-rendered; local
-  newer and different → local is pushed up; equal → nothing.
+  pulls both rows and compares `last_action_at` against the local `lastUpdated`:
+  remote newer → local is overwritten and re-rendered; local newer and different
+  → local is pushed up; equal → nothing. Rows are matched on the `type`
+  attribute, so their document IDs are irrelevant.
 - **Realtime.** After a successful pull the app subscribes; a remote change with
   a newer timestamp is written locally and re-rendered. Echoes of our own writes
   (same or older timestamp) are ignored.
@@ -163,12 +164,18 @@ dependency.
    | `last_action_at` | string | required — ISO datetime, client-set |
 5. **Collection permissions:** role **Users** (any authenticated user) =
    **Read** + **Update**. No Create / Delete for users.
-6. **Create exactly two documents**, with custom IDs **`lunch`** and **`dinner`**,
-   each seeded `meals_remaining: 0` and `last_action_at:` **an old timestamp**
-   (e.g. `2000-01-01T00:00:00.000Z`). Seeding an old timestamp — rather than
-   "now" — means the first device to sync treats its existing local count as the
-   newer value and pushes it up, instead of last-write-wins wiping it to 0. Do
-   one Add / Remove on each device afterwards to confirm both are in step.
+6. **Create exactly two rows**, one with `type` = **`lunch`** and one with
+   `type` = **`dinner`**. The **row / document ID does not matter** — an
+   auto-generated ID is fine; the app matches rows on the `type` attribute, not
+   the ID. Seed each with `meals_remaining: 0` and `last_action_at:` **an old
+   timestamp** (e.g. `2000-01-01T00:00:00.000Z`). The old timestamp means the
+   first device to sync treats its existing local count as the newer value and
+   pushes it up, instead of last-write-wins wiping it to 0. Do one Add / Remove
+   on each device afterwards to confirm both are in step.
+
+   (If the console won't accept `meals_remaining: 0` because the attribute is
+   required, either make it optional with default `0`, or seed `1` — the app
+   overwrites it on the first sync anyway.)
 
 ### Fill in the config
 

@@ -389,6 +389,43 @@ function syncEnabled() {
   return !!(window.MealSync && window.MealSync.isConfigured());
 }
 
+// --- Sync status indicator ---
+// A small dot + label under the cards: idle / syncing / synced / offline / error.
+// On error the full message is put in the title (hover / long-press) so a
+// backend problem (e.g. a missing document) is visible without a debugger.
+function setSyncStatus(state, detail) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const text = {
+    idle: 'Not synced',
+    syncing: 'Syncing…',
+    synced: 'Synced',
+    offline: 'Offline — will sync later',
+    error: 'Sync error (tap for detail)',
+  }[state] || state;
+  el.dataset.state = state;
+  document.getElementById('sync-text').textContent = text;
+  el.title = detail || '';
+  if (state === 'error' && detail) {
+    el.onclick = () => window.alert('Sync error:\n\n' + detail);
+  } else {
+    el.onclick = null;
+  }
+}
+
+// Queued items still waiting, or the browser reports itself offline.
+function syncPending() {
+  const q = readSyncQueue();
+  return (
+    (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+    !!(q.lunch || q.dinner)
+  );
+}
+
+function refreshIdleSyncStatus() {
+  setSyncStatus(syncPending() ? 'offline' : 'synced');
+}
+
 function readSyncQueue() {
   try {
     return JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)) || {};
@@ -429,18 +466,28 @@ function clearSyncQueueEntry(type) {
 // retried on next bootstrap and on the window 'online' event.
 async function syncPush(type, mealsRemaining, lastActionAt) {
   if (!syncEnabled()) return;
+  setSyncStatus('syncing');
   try {
     await window.MealSync.pushAction(type, mealsRemaining, lastActionAt);
     clearSyncQueueEntry(type);
+    refreshIdleSyncStatus();
   } catch (err) {
     console.error(`Sync push failed for ${type}; queued for retry:`, err);
     enqueueSync(type, mealsRemaining, lastActionAt);
+    if (navigator.onLine === false) {
+      setSyncStatus('offline');
+    } else {
+      setSyncStatus('error', describeSyncError(err));
+    }
   }
 }
 
 async function flushSyncQueue() {
   if (!syncEnabled()) return;
   const queue = readSyncQueue();
+  if (!queue.lunch && !queue.dinner) return;
+  setSyncStatus('syncing');
+  let failed = null;
   for (const type of MEAL_TYPES) {
     const entry = queue[type];
     if (!entry) continue;
@@ -453,8 +500,36 @@ async function flushSyncQueue() {
       clearSyncQueueEntry(type);
     } catch (err) {
       console.error(`Sync queue flush failed for ${type}:`, err);
+      failed = err;
     }
   }
+  if (failed && navigator.onLine !== false) {
+    setSyncStatus('error', describeSyncError(failed));
+  }
+}
+
+// Turns an Appwrite/network error into a one-line human explanation.
+function describeSyncError(err) {
+  if (!err) return 'Unknown error.';
+  const msg = err.message || String(err);
+  if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+    return (
+      "Couldn't reach the sync server. If this persists on a real connection, " +
+      'check that this origin is registered as a Web platform in the Appwrite ' +
+      'console.'
+    );
+  }
+  if (err.code === 404 || /could not be found|no '.*' row/i.test(msg)) {
+    return (
+      'The server is reachable but a meal row is missing. The meal_state ' +
+      'collection needs one row with type="lunch" and one with type="dinner" ' +
+      '(any row id). (' + msg + ')'
+    );
+  }
+  if (err.code === 401 || /unauthor|missing scope|guests/i.test(msg)) {
+    return 'Not authorised — sign out and back in. (' + msg + ')';
+  }
+  return msg;
 }
 
 // Converges one meal type's localStorage with a remote value using
@@ -489,11 +564,17 @@ function applyRemoteState(type, remoteMeals, remoteISO, pushBack) {
 
 async function reconcile() {
   if (!syncEnabled()) return;
+  setSyncStatus('syncing');
   let remoteStates;
   try {
     remoteStates = await window.MealSync.pullState();
   } catch (err) {
     console.error('Sync pull failed; staying on local state:', err);
+    if (navigator.onLine === false) {
+      setSyncStatus('offline');
+    } else {
+      setSyncStatus('error', describeSyncError(err));
+    }
     return;
   }
   for (const remote of remoteStates) {
@@ -508,6 +589,7 @@ async function reconcile() {
       console.error(`Sync reconcile failed for ${remote.type}:`, err);
     }
   }
+  refreshIdleSyncStatus();
 }
 
 function startRealtime() {
@@ -535,11 +617,14 @@ function revealCards() {
   });
 }
 
-function showSignOut() {
-  const btn = document.getElementById('signout-btn');
-  if (!btn) return;
-  btn.hidden = false;
-  btn.addEventListener('click', onSignOut, { once: true });
+function showSyncBar() {
+  const bar = document.getElementById('sync-bar');
+  if (!bar) return;
+  bar.hidden = false;
+  setSyncStatus('idle');
+  document
+    .getElementById('signout-btn')
+    .addEventListener('click', onSignOut, { once: true });
 }
 
 async function onSignOut() {
@@ -571,18 +656,35 @@ async function onLoginSubmit(event) {
   errorEl.textContent = '';
   submitEl.disabled = true;
   try {
-    await window.MealSync.login(emailEl.value.trim(), passEl.value);
+    try {
+      await window.MealSync.login(emailEl.value.trim(), passEl.value);
+    } catch (err) {
+      // A prior attempt may have actually created the session even though the
+      // response didn't come back cleanly (flaky link, "session already
+      // active"). If we're really signed in now, carry on; otherwise report.
+      const reallyAuthed = await window.MealSync.isAuthed().catch(() => false);
+      if (!reallyAuthed) {
+        const msg = (err && (err.message || String(err))) || '';
+        if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+          throw new Error(
+            "Couldn't reach the sync server — check the connection and that " +
+              'this origin is a registered Web platform in Appwrite.',
+          );
+        }
+        throw new Error('Check your email and password.');
+      }
+    }
     passEl.value = '';
     document.getElementById('login-gate').hidden = true;
     revealCards();
-    showSignOut();
+    showSyncBar();
     // First paint already happened at load; re-render from localStorage, then
     // run the normal (post-auth) bootstrap.
     MEAL_TYPES.forEach(init);
     runBootstrap();
   } catch (err) {
     console.error('Login failed:', err);
-    errorEl.textContent = 'Sign in failed. Check your email and password.';
+    errorEl.textContent = 'Sign in failed. ' + (err.message || '');
   } finally {
     submitEl.disabled = false;
   }
@@ -602,8 +704,10 @@ function runBootstrap() {
       .catch((err) => console.error('Sync bootstrap failed:', err));
 
     window.addEventListener('online', () => {
+      setSyncStatus('syncing');
       flushSyncQueue().then(reconcile);
     });
+    window.addEventListener('offline', () => setSyncStatus('offline'));
   }
 
   // Recheck periodically so an already-open tab still decrements right at
@@ -623,7 +727,7 @@ async function bootstrap() {
       showLoginGate();
       return; // runBootstrap() runs after a successful sign-in
     }
-    showSignOut();
+    showSyncBar();
   }
   runBootstrap();
 }
