@@ -6,6 +6,12 @@
   <title>Dog Meal / Order Planner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <!-- Cloud sync: Appwrite web SDK (exact pin, no build step) then the local
+       config + adapter, all before script.js. All `defer` so a blocked/slow
+       CDN never delays the first paint. -->
+  <script src="https://cdn.jsdelivr.net/npm/appwrite@18.2.0/dist/iife/sdk.js" defer></script>
+  <script src="config.js" defer></script>
+  <script src="sync.js" defer></script>
   <script src="script.js" defer></script>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -13,6 +19,14 @@
   <div class="page">
     <p class="eyebrow">Kitchen board</p>
     <h1>Meal planner</h1>
+
+    <form class="login-gate" id="login-gate" hidden autocomplete="on">
+      <p class="login-hint">Sign in to sync this board across devices.</p>
+      <p class="error" id="login-error"></p>
+      <input type="email" id="login-email" placeholder="Email" autocomplete="username" required>
+      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit" class="btn btn-add" id="login-submit">Sign in</button>
+    </form>
 
     <section class="card lunch">
       <div class="card-head"><span class="meal-label"><span class="dot"></span>Lunch</span></div>
@@ -57,6 +71,8 @@
         <button class="btn btn-remove" onclick="removeMeals('dinner')">Remove</button>
       </div>
     </section>
+
+    <button type="button" class="signout" id="signout-btn" hidden>Sign out</button>
   </div>
 </body>
 </html>

@@ -120,14 +120,16 @@ function loadState(type) {
   }
 }
 
+// Returns the ISO timestamp it stamped, so a caller pushing the same change to
+// the sync backend uses the exact same `lastUpdated` for the local write and
+// the server's `last_action_at` (the last-write-wins key).
 function saveState(type, mealsRemaining) {
+  const lastUpdated = new Date().toISOString();
   localStorage.setItem(
     storageKey(type),
-    JSON.stringify({
-      mealsRemaining,
-      lastUpdated: new Date().toISOString(),
-    }),
+    JSON.stringify({ mealsRemaining, lastUpdated }),
   );
+  return lastUpdated;
 }
 
 // --- App bootstrap (runs once per meal type) ---
@@ -179,9 +181,10 @@ function calculate(type) {
   const currentRemaining = state ? state.mealsRemaining : 0;
   const newTotal = currentRemaining + mealsMade;
 
-  saveState(type, newTotal);
+  const lastActionAt = saveState(type, newTotal);
   input.value = '';
   render(type, newTotal);
+  syncPush(type, newTotal, lastActionAt);
 }
 
 // Subtracts meals lost to spoilage/waste. Floors at 0.
@@ -199,9 +202,10 @@ function removeMeals(type) {
   const currentRemaining = state ? state.mealsRemaining : 0;
   const newTotal = Math.max(0, currentRemaining - mealsToRemove);
 
-  saveState(type, newTotal);
+  const lastActionAt = saveState(type, newTotal);
   input.value = '';
   render(type, newTotal);
+  syncPush(type, newTotal, lastActionAt);
 }
 
 // --- Rendering ---
@@ -370,14 +374,264 @@ async function scheduleNotifications(type, orderDate) {
   }
 }
 
+// --- Cloud sync wiring ---
+// Every backend call goes through window.MealSync (see sync.js). Nothing here
+// references the Appwrite SDK directly. All of it is best-effort: any failure
+// is caught and logged, and the app keeps working from localStorage -- the
+// same resilient style as loadHolidays().
+//
+// Only explicit user actions (Add / Remove) push to the server. The time-based
+// auto-decrement in init() is a local display projection and must never push.
+
+const SYNC_QUEUE_KEY = 'dogMealTracker:syncQueue';
+
+function syncEnabled() {
+  return !!(window.MealSync && window.MealSync.isConfigured());
+}
+
+function readSyncQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSyncQueue(queue) {
+  try {
+    if (queue && (queue.lunch || queue.dinner)) {
+      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+    } else {
+      localStorage.removeItem(SYNC_QUEUE_KEY);
+    }
+  } catch {
+    // Best-effort; a failed queue write just means this action isn't retried.
+  }
+}
+
+// Latest desired absolute value per type wins -- no history is kept.
+function enqueueSync(type, mealsRemaining, lastActionAt) {
+  const queue = readSyncQueue();
+  queue[type] = { mealsRemaining, lastActionAt };
+  writeSyncQueue(queue);
+}
+
+function clearSyncQueueEntry(type) {
+  const queue = readSyncQueue();
+  if (queue[type]) {
+    delete queue[type];
+    writeSyncQueue(queue);
+  }
+}
+
+// Fire-and-forget push from a user action. localStorage has already been
+// written by the caller. On failure the value is queued (latest wins) and
+// retried on next bootstrap and on the window 'online' event.
+async function syncPush(type, mealsRemaining, lastActionAt) {
+  if (!syncEnabled()) return;
+  try {
+    await window.MealSync.pushAction(type, mealsRemaining, lastActionAt);
+    clearSyncQueueEntry(type);
+  } catch (err) {
+    console.error(`Sync push failed for ${type}; queued for retry:`, err);
+    enqueueSync(type, mealsRemaining, lastActionAt);
+  }
+}
+
+async function flushSyncQueue() {
+  if (!syncEnabled()) return;
+  const queue = readSyncQueue();
+  for (const type of MEAL_TYPES) {
+    const entry = queue[type];
+    if (!entry) continue;
+    try {
+      await window.MealSync.pushAction(
+        type,
+        entry.mealsRemaining,
+        entry.lastActionAt,
+      );
+      clearSyncQueueEntry(type);
+    } catch (err) {
+      console.error(`Sync queue flush failed for ${type}:`, err);
+    }
+  }
+}
+
+// Converges one meal type's localStorage with a remote value using
+// last-write-wins on the timestamp.
+//   remote newer            -> write remote locally, re-init (auto-decrement
+//                              then ticks down correctly from the remote ts)
+//   local newer & differs   -> push local up (only when pushBack is set, i.e.
+//                              the bootstrap/reconnect pull -- never for a
+//                              realtime echo of our own write)
+//   equal                   -> nothing
+function applyRemoteState(type, remoteMeals, remoteISO, pushBack) {
+  const local = loadState(type);
+  const remoteTime = new Date(remoteISO).getTime();
+  const localTime = local ? local.lastUpdated.getTime() : -Infinity;
+
+  if (Number.isNaN(remoteTime)) return;
+
+  if (!local || remoteTime > localTime) {
+    localStorage.setItem(
+      storageKey(type),
+      JSON.stringify({ mealsRemaining: remoteMeals, lastUpdated: remoteISO }),
+    );
+    init(type);
+  } else if (
+    pushBack &&
+    localTime > remoteTime &&
+    local.mealsRemaining !== remoteMeals
+  ) {
+    syncPush(type, local.mealsRemaining, local.lastUpdated.toISOString());
+  }
+}
+
+async function reconcile() {
+  if (!syncEnabled()) return;
+  let remoteStates;
+  try {
+    remoteStates = await window.MealSync.pullState();
+  } catch (err) {
+    console.error('Sync pull failed; staying on local state:', err);
+    return;
+  }
+  for (const remote of remoteStates) {
+    try {
+      applyRemoteState(
+        remote.type,
+        remote.meals_remaining,
+        remote.last_action_at,
+        true,
+      );
+    } catch (err) {
+      console.error(`Sync reconcile failed for ${remote.type}:`, err);
+    }
+  }
+}
+
+function startRealtime() {
+  if (!syncEnabled()) return;
+  try {
+    window.MealSync.subscribe((type, meals, ts) => {
+      try {
+        if (!MEAL_TYPES.includes(type)) return;
+        // Ignore echoes of our own writes (ts equal or older than local).
+        applyRemoteState(type, meals, ts, false);
+      } catch (err) {
+        console.error('Sync realtime apply failed:', err);
+      }
+    });
+  } catch (err) {
+    console.error('Sync realtime subscribe failed:', err);
+  }
+}
+
+// --- Login gate ---
+
+function revealCards() {
+  document.querySelectorAll('.card').forEach((el) => {
+    el.hidden = false;
+  });
+}
+
+function showSignOut() {
+  const btn = document.getElementById('signout-btn');
+  if (!btn) return;
+  btn.hidden = false;
+  btn.addEventListener('click', onSignOut, { once: true });
+}
+
+async function onSignOut() {
+  try {
+    await window.MealSync.logout();
+  } catch (err) {
+    console.error('Sign out failed:', err);
+  }
+  location.reload();
+}
+
+function showLoginGate() {
+  const gate = document.getElementById('login-gate');
+  if (!gate) return;
+  document.querySelectorAll('.card').forEach((el) => {
+    el.hidden = true;
+  });
+  gate.hidden = false;
+  gate.addEventListener('submit', onLoginSubmit);
+}
+
+async function onLoginSubmit(event) {
+  event.preventDefault();
+  const emailEl = document.getElementById('login-email');
+  const passEl = document.getElementById('login-password');
+  const errorEl = document.getElementById('login-error');
+  const submitEl = document.getElementById('login-submit');
+
+  errorEl.textContent = '';
+  submitEl.disabled = true;
+  try {
+    await window.MealSync.login(emailEl.value.trim(), passEl.value);
+    passEl.value = '';
+    document.getElementById('login-gate').hidden = true;
+    revealCards();
+    showSignOut();
+    // First paint already happened at load; re-render from localStorage, then
+    // run the normal (post-auth) bootstrap.
+    MEAL_TYPES.forEach(init);
+    runBootstrap();
+  } catch (err) {
+    console.error('Login failed:', err);
+    errorEl.textContent = 'Sign in failed. Check your email and password.';
+  } finally {
+    submitEl.disabled = false;
+  }
+}
+
+// --- App bootstrap ---
+
+// The part that runs once we're past the login gate (or when there's no gate).
+function runBootstrap() {
+  requestNotificationPermission();
+  loadHolidays();
+
+  if (syncEnabled()) {
+    flushSyncQueue()
+      .then(reconcile)
+      .then(startRealtime)
+      .catch((err) => console.error('Sync bootstrap failed:', err));
+
+    window.addEventListener('online', () => {
+      flushSyncQueue().then(reconcile);
+    });
+  }
+
+  // Recheck periodically so an already-open tab still decrements right at
+  // the meal time, rather than only on next page load.
+  setInterval(() => MEAL_TYPES.forEach(init), 5 * 60 * 1000);
+}
+
+async function bootstrap() {
+  if (syncEnabled()) {
+    let authed = false;
+    try {
+      authed = await window.MealSync.isAuthed();
+    } catch (err) {
+      console.error('Sync auth check failed:', err);
+    }
+    if (!authed) {
+      showLoginGate();
+      return; // runBootstrap() runs after a successful sign-in
+    }
+    showSignOut();
+  }
+  runBootstrap();
+}
+
 // Kick everything off. Render immediately from localStorage (plus any
 // cached holidays) so the counts and dates show even with no connection;
-// the holiday fetch then refreshes the order-by dates whenever it can.
+// nothing is awaited before this first paint. The holiday fetch and any
+// cloud sync then refine things whenever they can.
 loadCachedHolidays();
 MEAL_TYPES.forEach(init);
-requestNotificationPermission();
-loadHolidays();
-
-// Recheck periodically so an already-open tab still decrements right at
-// the meal time, rather than only on next page load.
-setInterval(() => MEAL_TYPES.forEach(init), 5 * 60 * 1000);
+bootstrap();
