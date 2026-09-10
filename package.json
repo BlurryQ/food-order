@@ -5,7 +5,7 @@
     "@capacitor/core": "^8.5.0",
     "@capacitor/local-notifications": "^8.3.1"
   },
-  "name": "food-order",
+  "name": "somas-meals",
   "version": "1.0.0",
   "description": "A little kitchen-board-styled web app for tracking a dog's meals and working out the **latest date to order or prep more food**, so a defrost never gets missed.",
   "main": "script.js",
@@ -14,14 +14,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BlurryQ/food-order.git"
+    "url": "git+https://github.com/BlurryQ/somas-meals.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/BlurryQ/food-order/issues"
+    "url": "https://github.com/BlurryQ/somas-meals/issues"
   },
-  "homepage": "https://github.com/BlurryQ/food-order#readme"
+  "homepage": "https://github.com/BlurryQ/somas-meals#readme"
 }
