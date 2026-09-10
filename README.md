@@ -1,4 +1,4 @@
-# 🐶 Meal Planner
+# 🐶 Soma's Meals
 
 A little kitchen-board-styled web app for tracking a dog's meals and working out the **latest date to order or prep more food**, so a defrost never gets missed.
 
