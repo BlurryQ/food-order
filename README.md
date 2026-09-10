@@ -4,7 +4,7 @@ A little kitchen-board-styled web app for tracking a dog's meals and working out
 
 Tracks lunch and dinner as two independent counts, each with its own order-by date, run-out date, and advance-warning reminders.
 
-![The meal planner: a header with a live sync-status chip, and lunch and dinner cards styled like a kitchen chalkboard](screenshots/cards-overview.png)
+![Soma's Meals: a header with a live sync-status chip, and lunch and dinner cards styled like a kitchen chalkboard](screenshots/cards-overview.png)
 
 ---
 
@@ -226,7 +226,7 @@ npx cap copy android                       # push www/ into the native project
 cd android && ./gradlew assembleDebug      # -> app/build/outputs/apk/debug/app-debug.apk
 ```
 
-A pre-built debug APK is kept at `meal-planner.apk` in the project root.
+A pre-built debug APK is kept at `somas-meals.apk` in the project root.
 
 **Known gotcha:** the build may fail with a Kotlin dependency mismatch unless the Kotlin BOM is pinned explicitly. If you hit that, add this to `android/app/build.gradle`:
 
@@ -262,7 +262,7 @@ Replace `'england-and-wales'` with `'scotland'` or `'northern-ireland'`.
 - [x] Multi-device cloud sync via Appwrite — offline-first, last-write-wins, realtime; all SDK calls isolated in `www/sync.js` (see [Cloud sync](#️-cloud-sync-appwrite))
 - [ ] Optional: settings screen for meal times / full-bowl size, if this ever moves beyond a personal tool
 
-**Note on reboots:** some phone manufacturers (Samsung, Xiaomi, Huawei, OnePlus in particular) restrict background auto-start for apps by default to save battery, which can silently stop the reboot rescheduling from running even though it's correctly set up. If reminders seem to go quiet after a restart, check something like *Settings → Apps → Meal Planner → Battery → Unrestricted* on the phone (exact wording varies by manufacturer) — it's a phone setting, not an app bug.
+**Note on reboots:** some phone manufacturers (Samsung, Xiaomi, Huawei, OnePlus in particular) restrict background auto-start for apps by default to save battery, which can silently stop the reboot rescheduling from running even though it's correctly set up. If reminders seem to go quiet after a restart, check something like *Settings → Apps → Soma's Meals → Battery → Unrestricted* on the phone (exact wording varies by manufacturer) — it's a phone setting, not an app bug.
 
 ---
 
