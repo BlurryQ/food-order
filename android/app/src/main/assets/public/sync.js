@@ -125,6 +125,14 @@
       await account.deleteSession('current');
     },
 
+    // The signed-in account's email, for the header account menu. Throws if
+    // there is no usable session -- the caller treats that as "nothing to show".
+    currentEmail: async function () {
+      ensureClient();
+      var user = await account.get();
+      return user && user.email;
+    },
+
     // -> [{ type, meals_remaining, last_action_at }, ...] for whichever of the
     // two rows exist. Also (re)builds the type -> $id cache.
     pullState: async function () {

@@ -16,13 +16,23 @@ body {
   background: #0E1210;
   display: flex;
   justify-content: center;
-  padding: 24px 12px 48px;
+  padding: 20px 16px 16px;
   font-family: 'Inter', sans-serif;
 }
 
 .page {
   width: 100%;
   max-width: 420px;
+}
+
+/* --- Header / account surface --- */
+.board-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+  margin-bottom: 22px;
 }
 
 .eyebrow {
@@ -38,14 +48,115 @@ h1 {
   color: var(--chalk);
   font-size: 26px;
   font-weight: 700;
-  margin: 0 0 24px;
+  margin: 0;
+}
+
+.account-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--chalk-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+/* Expand the hit area to a 44px tap target without stretching the visible pill. */
+.account-chip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--chalk-dim);
+  flex-shrink: 0;
+}
+
+.account-chip[data-state="signed-out"] {
+  border-color: rgba(232, 178, 59, 0.3);
+  background: rgba(232, 178, 59, 0.12);
+  color: var(--lunch);
+}
+.account-chip[data-state="signed-out"] .chip-dot { background: var(--lunch); }
+
+.account-chip[data-state="syncing"],
+.account-chip[data-state="synced"],
+.account-chip[data-state="offline"],
+.account-chip[data-state="error"] {
+  border-color: rgba(244, 241, 232, 0.14);
+  background: rgba(244, 241, 232, 0.06);
+  color: var(--chalk-dim);
+}
+.account-chip[data-state="syncing"] .chip-dot { background: var(--dinner); animation: sync-pulse 1s ease-in-out infinite; }
+.account-chip[data-state="synced"]  .chip-dot { background: #7FB77E; }
+.account-chip[data-state="offline"] .chip-dot { background: var(--lunch); }
+.account-chip[data-state="error"]   .chip-dot { background: var(--danger); }
+.account-chip[data-state="error"] { cursor: help; }
+
+@keyframes sync-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.account-menu {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  width: 196px;
+  background: var(--card);
+  border: 1px solid rgba(244, 241, 232, 0.12);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+}
+
+.menu-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--chalk-dim);
+  letter-spacing: 0.03em;
+  margin: 0 0 4px;
+}
+
+.menu-email {
+  font-size: 13px;
+  color: var(--chalk);
+  margin: 0 0 12px;
+  word-break: break-all;
+}
+
+.menu-signout {
+  width: 100%;
+  border: none;
+  border-radius: 9px;
+  padding: 9px 0;
+  background: rgba(217, 105, 95, 0.12);
+  color: var(--danger);
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .card {
   background: var(--card);
   border-radius: 16px;
-  padding: 18px;
-  margin-bottom: 18px;
+  padding: 16px;
+  margin-bottom: 14px;
   border: 1px solid rgba(244, 241, 232, 0.06);
 }
 
@@ -58,7 +169,7 @@ h1 {
 
 .meal-label {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--chalk);
   display: flex;
@@ -83,7 +194,7 @@ h1 {
 
 .order-date {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 700;
   color: var(--chalk);
   margin: 2px 0 10px;
@@ -110,7 +221,7 @@ h1 {
   color: var(--chalk-dim);
 }
 
-.divider { border-top: 1px dashed var(--divider); margin: 16px 0; }
+.divider { border-top: 1px dashed var(--divider); margin: 14px 0; }
 
 .error {
   color: var(--danger);
@@ -120,8 +231,9 @@ h1 {
 }
 .error:empty { display: none; }
 
-.controls { display: flex; gap: 8px; }
-.controls-secondary { margin-top: 8px; }
+.controls { display: flex; gap: 8px; align-items: stretch; }
+.controls input[type="number"] { min-height: 44px; }
+.controls .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 
 input[type="number"],
 input[type="email"],
@@ -140,70 +252,112 @@ input[type="number"]::placeholder,
 input[type="email"]::placeholder,
 input[type="password"]::placeholder { color: var(--chalk-dim); }
 
-/* --- Cloud-sync login gate --- */
-.login-gate {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-.login-gate input { flex: none; }
-.login-gate .btn { padding: 10px 16px; }
-
-.login-hint {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  color: var(--chalk-dim);
-  letter-spacing: 0.03em;
-  margin: 0;
-}
-
-.sync-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 4px 2px 0;
-}
-
-.sync-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 6px;
-  background: none;
-  border: none;
-  color: var(--chalk-dim);
+.readonly-note {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  letter-spacing: 0.03em;
-  cursor: default;
+  color: var(--chalk-dim);
+  line-height: 1.5;
+  margin: 16px 2px 0;
 }
 
-.sync-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--chalk-dim);
-  flex-shrink: 0;
+/* --- Sign-in bottom sheet --- */
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 9, 0.6);
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 220ms ease-out;
 }
-.sync-status[data-state="syncing"] .sync-dot { background: var(--dinner); animation: sync-pulse 1s ease-in-out infinite; }
-.sync-status[data-state="synced"]  .sync-dot { background: #7FB77E; }
-.sync-status[data-state="offline"] .sync-dot { background: var(--lunch); }
-.sync-status[data-state="error"]   .sync-dot { background: var(--danger); }
-.sync-status[data-state="error"] { cursor: help; }
+.sheet-scrim.is-open { opacity: 1; }
 
-@keyframes sync-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.signin-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  background: var(--card);
+  border-top: 1px solid rgba(244, 241, 232, 0.12);
+  border-radius: 22px 22px 0 0;
+  padding: 12px 18px calc(24px + env(safe-area-inset-bottom));
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.5);
+  transform: translateY(100%);
+  transition: transform 220ms ease-out;
+}
+.signin-sheet.is-open { transform: translateY(0); }
 
-.signout {
-  padding: 4px 8px;
-  background: none;
+.sheet-grabber {
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(244, 241, 232, 0.2);
+  margin: 0 auto 16px;
+}
+
+.signin-sheet h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--chalk);
+  margin: 0 0 6px;
+}
+
+.sheet-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--chalk-dim);
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.signin-sheet input {
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+.signin-sheet .error {
+  background: rgba(217, 105, 95, 0.1);
+  border: 1px solid rgba(217, 105, 95, 0.28);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--danger);
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
+.sheet-submit {
+  width: 100%;
   border: none;
+  border-radius: 12px;
+  padding: 14px 0;
+  margin-bottom: 10px;
+  background: rgba(232, 178, 59, 0.16);
+  color: var(--lunch);
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sheet-submit:disabled { opacity: 0.6; cursor: default; }
+
+.sheet-dismiss {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 4px 0;
   color: var(--chalk-dim);
   font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  text-decoration: underline;
+  font-size: 13px;
   cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signin-sheet,
+  .sheet-scrim { transition: none; }
 }
 
 .btn {

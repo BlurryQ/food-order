@@ -17,16 +17,20 @@
 </head>
 <body>
   <div class="page">
-    <p class="eyebrow">Kitchen board</p>
-    <h1>Meal planner</h1>
-
-    <form class="login-gate" id="login-gate" hidden autocomplete="on">
-      <p class="login-hint">Sign in to sync this board across devices.</p>
-      <p class="error" id="login-error"></p>
-      <input type="email" id="login-email" placeholder="Email" autocomplete="username" required>
-      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
-      <button type="submit" class="btn btn-add" id="login-submit">Sign in</button>
-    </form>
+    <header class="board-head">
+      <div>
+        <p class="eyebrow">Kitchen board</p>
+        <h1>Meal planner</h1>
+      </div>
+      <button type="button" class="account-chip" id="account-chip" data-state="signed-out" aria-haspopup="true" aria-expanded="false" hidden>
+        <span class="chip-dot"></span><span id="chip-text">Sign in to sync</span>
+      </button>
+      <div class="account-menu" id="account-menu" hidden>
+        <p class="menu-label">Signed in as</p>
+        <p class="menu-email" id="menu-email"></p>
+        <button type="button" class="menu-signout" id="signout-btn">Sign out</button>
+      </div>
+    </header>
 
     <section class="card lunch">
       <div class="card-head"><span class="meal-label"><span class="dot"></span>Lunch</span></div>
@@ -38,15 +42,14 @@
           <div class="tally-row" id="tally-lunch"></div>
         </div>
       </div>
-      <div class="divider"></div>
-      <p class="error" id="error-lunch"></p>
-      <div class="controls">
-        <input type="number" id="meals-lunch" min="0" placeholder="Meals made">
-        <button class="btn btn-add" onclick="calculate('lunch')">+ Add</button>
-      </div>
-      <div class="controls controls-secondary">
-        <input type="number" id="remove-lunch" min="0" placeholder="Remove qty">
-        <button class="btn btn-remove" onclick="removeMeals('lunch')">Remove</button>
+      <div class="card-controls" hidden>
+        <div class="divider"></div>
+        <p class="error" id="error-lunch"></p>
+        <div class="controls">
+          <input type="number" id="meals-lunch" min="0" placeholder="Meals made">
+          <button class="btn btn-add" onclick="calculate('lunch')">+ Add</button>
+          <button class="btn btn-remove" onclick="removeMeals('lunch')">&minus;</button>
+        </div>
       </div>
     </section>
 
@@ -60,24 +63,30 @@
           <div class="tally-row" id="tally-dinner"></div>
         </div>
       </div>
-      <div class="divider"></div>
-      <p class="error" id="error-dinner"></p>
-      <div class="controls">
-        <input type="number" id="meals-dinner" min="0" placeholder="Meals received">
-        <button class="btn btn-add" onclick="calculate('dinner')">+ Add</button>
-      </div>
-      <div class="controls controls-secondary">
-        <input type="number" id="remove-dinner" min="0" placeholder="Remove qty">
-        <button class="btn btn-remove" onclick="removeMeals('dinner')">Remove</button>
+      <div class="card-controls" hidden>
+        <div class="divider"></div>
+        <p class="error" id="error-dinner"></p>
+        <div class="controls">
+          <input type="number" id="meals-dinner" min="0" placeholder="Meals received">
+          <button class="btn btn-add" onclick="calculate('dinner')">+ Add</button>
+          <button class="btn btn-remove" onclick="removeMeals('dinner')">&minus;</button>
+        </div>
       </div>
     </section>
 
-    <div class="sync-bar" id="sync-bar" hidden>
-      <button type="button" class="sync-status" id="sync-status" data-state="idle" title="">
-        <span class="sync-dot"></span><span id="sync-text">Not synced</span>
-      </button>
-      <button type="button" class="signout" id="signout-btn">Sign out</button>
-    </div>
+    <p class="readonly-note" id="readonly-note" hidden>Read-only &mdash; counts from this device. Sign in to add, remove and sync.</p>
+
+    <div class="sheet-scrim" id="sheet-scrim" hidden></div>
+    <form class="signin-sheet" id="signin-sheet" hidden autocomplete="on">
+      <div class="sheet-grabber"></div>
+      <h2>Sync this board</h2>
+      <p class="sheet-sub">Both of you see the same counts, live, on every device.</p>
+      <p class="error" id="login-error"></p>
+      <input type="email" id="login-email" placeholder="Email" autocomplete="username" required>
+      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit" class="sheet-submit" id="login-submit">Sign in</button>
+      <button type="button" class="sheet-dismiss" id="sheet-dismiss">Keep using this device only</button>
+    </form>
   </div>
 </body>
 </html>

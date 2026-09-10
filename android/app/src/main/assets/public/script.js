@@ -187,9 +187,11 @@ function calculate(type) {
   syncPush(type, newTotal, lastActionAt);
 }
 
-// Subtracts meals lost to spoilage/waste. Floors at 0.
+// Subtracts meals lost to spoilage/waste. Floors at 0. Reads the same
+// `#meals-<type>` input as calculate() -- the one control row now drives both
+// "+ Add" and "-".
 function removeMeals(type) {
-  const input = document.getElementById(`remove-${type}`);
+  const input = document.getElementById(`meals-${type}`);
   const mealsToRemove = parseInt(input.value, 10);
 
   if (isNaN(mealsToRemove) || mealsToRemove < 0) {
@@ -390,27 +392,24 @@ function syncEnabled() {
 }
 
 // --- Sync status indicator ---
-// A small dot + label under the cards: idle / syncing / synced / offline / error.
-// On error the full message is put in the title (hover / long-press) so a
-// backend problem (e.g. a missing document) is visible without a debugger.
+// Drives the header account chip: signed-out / syncing / synced / offline /
+// error. On error the full message is stashed on the element (and in the
+// title) so a backend problem (e.g. a missing document) is visible on tap
+// without a debugger -- onChipClick() surfaces it in an alert().
 function setSyncStatus(state, detail) {
-  const el = document.getElementById('sync-status');
+  const el = document.getElementById('account-chip');
   if (!el) return;
   const text = {
-    idle: 'Not synced',
+    'signed-out': 'Sign in to sync',
     syncing: 'Syncing…',
     synced: 'Synced',
-    offline: 'Offline — will sync later',
-    error: 'Sync error (tap for detail)',
+    offline: 'Offline',
+    error: 'Sync error',
   }[state] || state;
   el.dataset.state = state;
-  document.getElementById('sync-text').textContent = text;
-  el.title = detail || '';
-  if (state === 'error' && detail) {
-    el.onclick = () => window.alert('Sync error:\n\n' + detail);
-  } else {
-    el.onclick = null;
-  }
+  document.getElementById('chip-text').textContent = text;
+  el.title = state === 'error' && detail ? detail : '';
+  el._syncErrorDetail = state === 'error' && detail ? detail : null;
 }
 
 // Queued items still waiting, or the browser reports itself offline.
@@ -609,22 +608,176 @@ function startRealtime() {
   }
 }
 
-// --- Login gate ---
+// --- Account surface (header chip + menu + sign-in sheet) ---
+// When sync is configured the header carries a chip that both shows live sync
+// state and is the only way in and out of the account: signed out it opens the
+// sign-in sheet, signed in it opens a small menu with the account email and
+// Sign out. The board itself stays visible and readable in every state -- when
+// signed out it's just read-only (the per-card `.card-controls` are hidden).
 
-function revealCards() {
-  document.querySelectorAll('.card').forEach((el) => {
+function showControls() {
+  document.querySelectorAll('.card-controls').forEach((el) => {
     el.hidden = false;
   });
+  const note = document.getElementById('readonly-note');
+  if (note) note.hidden = true;
 }
 
-function showSyncBar() {
-  const bar = document.getElementById('sync-bar');
-  if (!bar) return;
-  bar.hidden = false;
-  setSyncStatus('idle');
+function hideControls() {
+  document.querySelectorAll('.card-controls').forEach((el) => {
+    el.hidden = true;
+  });
+  const note = document.getElementById('readonly-note');
+  if (note) note.hidden = false;
+}
+
+// Wires the static chrome once: the chip tap, the sheet's submit / dismiss /
+// scrim. Safe to call whenever sync is configured, regardless of auth state.
+function wireAccountUI() {
+  document
+    .getElementById('account-chip')
+    ?.addEventListener('click', onChipClick);
+  document
+    .getElementById('signin-sheet')
+    ?.addEventListener('submit', onLoginSubmit);
+  document
+    .getElementById('sheet-dismiss')
+    ?.addEventListener('click', closeSheet);
+  document
+    .getElementById('sheet-scrim')
+    ?.addEventListener('click', closeSheet);
+}
+
+function onChipClick() {
+  const chip = document.getElementById('account-chip');
+  if (!chip) return;
+  const state = chip.dataset.state;
+  if (state === 'error' && chip._syncErrorDetail) {
+    window.alert('Sync error:\n\n' + chip._syncErrorDetail);
+    // Still fall through so Sign out (the fix for an auth error) stays reachable.
+  }
+  if (state === 'signed-out') {
+    openSheet();
+  } else {
+    toggleAccountMenu();
+  }
+}
+
+// --- Account menu ---
+
+function toggleAccountMenu(force) {
+  const menu = document.getElementById('account-menu');
+  const chip = document.getElementById('account-chip');
+  if (!menu || !chip) return;
+  const open = force === undefined ? menu.hidden : force;
+  menu.hidden = !open;
+  chip.setAttribute('aria-expanded', String(open));
+  if (open) {
+    populateMenuEmail();
+    document.addEventListener('keydown', onMenuKeydown);
+    // Defer so the click that opened the menu doesn't immediately close it.
+    setTimeout(() => document.addEventListener('click', onOutsideMenuClick), 0);
+  } else {
+    document.removeEventListener('keydown', onMenuKeydown);
+    document.removeEventListener('click', onOutsideMenuClick);
+  }
+}
+
+function onOutsideMenuClick(event) {
+  const menu = document.getElementById('account-menu');
+  const chip = document.getElementById('account-chip');
+  if (!menu || menu.contains(event.target) || chip.contains(event.target)) return;
+  toggleAccountMenu(false);
+}
+
+function onMenuKeydown(event) {
+  if (event.key === 'Escape') toggleAccountMenu(false);
+}
+
+async function populateMenuEmail() {
+  const el = document.getElementById('menu-email');
+  if (!el || el.textContent || !window.MealSync?.currentEmail) return;
+  try {
+    const email = await window.MealSync.currentEmail();
+    if (email) el.textContent = email;
+  } catch (err) {
+    console.error('Could not load account email:', err);
+  }
+}
+
+// --- Sign-in sheet ---
+
+let sheetLastFocus = null;
+
+function prefersReducedMotion() {
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
+function openSheet() {
+  const sheet = document.getElementById('signin-sheet');
+  const scrim = document.getElementById('sheet-scrim');
+  if (!sheet || !scrim) return;
+  toggleAccountMenu(false);
+  sheetLastFocus = document.activeElement;
+  scrim.hidden = false;
+  sheet.hidden = false;
+  // Next frame, so the transition runs from the off-screen start state.
+  requestAnimationFrame(() => {
+    scrim.classList.add('is-open');
+    sheet.classList.add('is-open');
+  });
+  document.addEventListener('keydown', onSheetKeydown);
+  const emailEl = document.getElementById('login-email');
+  if (emailEl) setTimeout(() => emailEl.focus(), prefersReducedMotion() ? 0 : 220);
+}
+
+function closeSheet() {
+  const sheet = document.getElementById('signin-sheet');
+  const scrim = document.getElementById('sheet-scrim');
+  if (!sheet || !scrim) return;
+  document.removeEventListener('keydown', onSheetKeydown);
+  sheet.classList.remove('is-open');
+  scrim.classList.remove('is-open');
+
+  const hide = () => {
+    sheet.hidden = true;
+    scrim.hidden = true;
+  };
+  if (prefersReducedMotion()) {
+    hide();
+  } else {
+    let done = false;
+    const onEnd = () => {
+      if (done) return;
+      done = true;
+      sheet.removeEventListener('transitionend', onEnd);
+      hide();
+    };
+    sheet.addEventListener('transitionend', onEnd);
+    setTimeout(onEnd, 300);
+  }
+  if (sheetLastFocus && typeof sheetLastFocus.focus === 'function') {
+    sheetLastFocus.focus();
+  }
+}
+
+function onSheetKeydown(event) {
+  if (event.key === 'Escape') closeSheet();
+}
+
+// --- Signed-in / signed-out board states ---
+
+function showSignedIn(initialStatus) {
+  const chip = document.getElementById('account-chip');
+  if (chip) chip.hidden = false;
   document
     .getElementById('signout-btn')
-    .addEventListener('click', onSignOut, { once: true });
+    ?.addEventListener('click', onSignOut, { once: true });
+  showControls();
+  setSyncStatus(initialStatus || 'syncing');
 }
 
 async function onSignOut() {
@@ -636,14 +789,14 @@ async function onSignOut() {
   location.reload();
 }
 
+// Signed out: the board stays visible with its real localStorage counts, the
+// controls are hidden (read-only), and the chip goes amber. The sheet is NOT
+// opened here -- it only opens on an explicit chip tap.
 function showLoginGate() {
-  const gate = document.getElementById('login-gate');
-  if (!gate) return;
-  document.querySelectorAll('.card').forEach((el) => {
-    el.hidden = true;
-  });
-  gate.hidden = false;
-  gate.addEventListener('submit', onLoginSubmit);
+  const chip = document.getElementById('account-chip');
+  if (chip) chip.hidden = false;
+  hideControls();
+  setSyncStatus('signed-out');
 }
 
 async function onLoginSubmit(event) {
@@ -655,6 +808,8 @@ async function onLoginSubmit(event) {
 
   errorEl.textContent = '';
   submitEl.disabled = true;
+  const submitLabel = submitEl.textContent;
+  submitEl.textContent = 'Signing in…';
   try {
     try {
       await window.MealSync.login(emailEl.value.trim(), passEl.value);
@@ -675,9 +830,8 @@ async function onLoginSubmit(event) {
       }
     }
     passEl.value = '';
-    document.getElementById('login-gate').hidden = true;
-    revealCards();
-    showSyncBar();
+    closeSheet();
+    showSignedIn('synced');
     // First paint already happened at load; re-render from localStorage, then
     // run the normal (post-auth) bootstrap.
     MEAL_TYPES.forEach(init);
@@ -687,6 +841,7 @@ async function onLoginSubmit(event) {
     errorEl.textContent = 'Sign in failed. ' + (err.message || '');
   } finally {
     submitEl.disabled = false;
+    submitEl.textContent = submitLabel;
   }
 }
 
@@ -717,6 +872,7 @@ function runBootstrap() {
 
 async function bootstrap() {
   if (syncEnabled()) {
+    wireAccountUI();
     let authed = false;
     try {
       authed = await window.MealSync.isAuthed();
@@ -727,7 +883,11 @@ async function bootstrap() {
       showLoginGate();
       return; // runBootstrap() runs after a successful sign-in
     }
-    showSyncBar();
+    showSignedIn('syncing');
+  } else {
+    // No sync backend configured: pure-localStorage mode. No chip, no sheet --
+    // the per-card controls are simply always available.
+    showControls();
   }
   runBootstrap();
 }
